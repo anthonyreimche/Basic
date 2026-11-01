@@ -1,0 +1,31 @@
+{
+  "id": "safelight.basic",
+  "name": "Basic",
+  "version": "3.0.0",
+  "description": "Exposure, contrast, highlights, shadows, whites, blacks, presence and Auto Tone.",
+  "author": "Anthony Reimche",
+  "main": "dist/index.js",
+  "license": "GPL-3.0-only",
+  "categories": [
+    "tone"
+  ],
+  "keywords": [
+    "exposure",
+    "contrast",
+    "highlights",
+    "shadows",
+    "whites",
+    "blacks",
+    "texture",
+    "clarity",
+    "dehaze",
+    "vibrance",
+    "saturation",
+    "auto tone"
+  ],
+  "repository": "anthonyreimche/basic-adjustments",
+  "worksWith": [
+    "anthonyreimche/Develop"
+  ],
+  "minAppVersion": "3.2.0"
+}
