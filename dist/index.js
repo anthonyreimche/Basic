@@ -164,7 +164,7 @@ function y(e) {
 		clampInput: t("\n    c = clamp(c, 0.0, 1.0);")
 	};
 }
-var b = "  {\n    float L = max(luma(lin), 1e-4);\n    float Lx = L * exp2(E);\n    float L1 = slToneHighlights(Lx, E, H);\n    float cameraLift = uApplyBaseCurve ? uBaselineShadows : 0.0;\n    float L2 = slToneShadows(slToneShadows(L1, cameraLift), S);\n    float curveRatio = 1.0;\n    if (abs(H) > 0.001 || abs(S) > 0.001) {\n      // Floored after Exposure (as localToneBlend is): under the curves' own\n      // 1e-4 floor a region's Shadows gain would grow as Exposure goes down.\n      float Bx = max(slLocalToneBase(srcUv, L) * exp2(E), 1e-4);\n      float B1 = slToneHighlights(Bx, E, H);\n      // The Highlights curve over the default one, for the pixel and for its\n      // region, blended as L1 is below. L1 is still the pixel's curve here.\n      if (abs(H) > 0.001) {\n        curveRatio = mix(\n          L1 / slToneHighlights(Lx, E, 0.0),\n          B1 / slToneHighlights(Bx, E, 0.0), abs(H));\n      }\n      L1 = mix(L1, Lx * B1 / Bx, abs(H));\n      float C1 = slToneShadows(L1, cameraLift);\n      float CB = slToneShadows(B1, cameraLift);\n      L2 = mix(slToneShadows(C1, S), C1 * slToneShadows(CB, S) / CB, abs(S));\n    }\n    // slSceneLuma undoes only the default shoulder, on the same pixel/region\n    // blend the edit above used, so Highlights carries into it.\n    if (uApplyToneShoulder) slShoulderGain = Lx * curveRatio / max(L1, 1e-6);\n    lin = retargetLuma(lin, L, L2);\n    // Hunt effect: restore colourfulness lost by pulling bright values down.\n    if (H < -0.001) {\n      float pulled = clamp(Lx - L1, 0.0, 1.0);\n      lin = mix(vec3(luma(lin)), lin, 1.0 + pulled * HI_SAT);\n    }\n  }", x = "\n  float slShoulderGain = 1.0;", S = (e) => {
+var b = "  {\n    float L = max(luma(lin), 1e-4);\n    float Lx = L * exp2(E);\n    float L1 = slToneHighlights(Lx, E, H);\n    float cameraLift = uApplyBaseCurve ? uBaselineShadows : 0.0;\n    float L2 = basicShadows(slToneShadows(L1, cameraLift), S);\n    float curveRatio = 1.0;\n    if (abs(H) > 0.001 || abs(S) > 0.001) {\n      // Floored after Exposure (as localToneBlend is): under the curves' own\n      // 1e-4 floor a region's Shadows gain would grow as Exposure goes down.\n      float Bx = max(slLocalToneBase(srcUv, L) * exp2(E), 1e-4);\n      float B1 = slToneHighlights(Bx, E, H);\n      // The Highlights curve over the default one, for the pixel and for its\n      // region, blended as L1 is below. L1 is still the pixel's curve here.\n      if (abs(H) > 0.001) {\n        curveRatio = mix(\n          L1 / slToneHighlights(Lx, E, 0.0),\n          B1 / slToneHighlights(Bx, E, 0.0), abs(H));\n      }\n      L1 = mix(L1, Lx * B1 / Bx, abs(H));\n      float C1 = slToneShadows(L1, cameraLift);\n      float CB = slToneShadows(B1, cameraLift);\n      L2 = mix(basicShadows(C1, S), C1 * basicShadows(CB, S) / CB, abs(S));\n    }\n    // slSceneLuma undoes only the default shoulder, on the same pixel/region\n    // blend the edit above used, so Highlights carries into it.\n    if (uApplyToneShoulder) slShoulderGain = Lx * curveRatio / max(L1, 1e-6);\n    lin = retargetLuma(lin, L, L2);\n    // Hunt effect: restore colourfulness lost by pulling bright values down.\n    if (H < -0.001) {\n      float pulled = clamp(Lx - L1, 0.0, 1.0);\n      lin = mix(vec3(luma(lin)), lin, 1.0 + pulled * HI_SAT);\n    }\n  }", x = "float basicShadows(float x, float S) {\n#if SL_PROCESS_VERSION >= 2\n  if (abs(S) <= 0.001) return x;\n  float x0 = max(x, 1e-4);\n  float w = 0.5 * exp(-3.0 * x0);\n  float halfGain = 1.0 - w + w * pow(x0, S > 0.0 ? -0.175 : 0.4);\n  float reach = 1.0 - smoothstep(-3.5, 0.0, log2(x0 / 0.18));\n  return x0 * pow(halfGain, 2.0 * abs(S) * reach);\n#else\n  return slToneShadows(x, S);\n#endif\n}", S = "\n  float slShoulderGain = 1.0;", C = (e) => {
 	let { v2: t, pick: n } = y(e);
 	return `  // Integrated tonal pipeline: exposure, highlights, and shadows are applied as
   // a single shoulder-based tone map instead of sequential independent operations.
@@ -173,9 +173,9 @@ var b = "  {\n    float L = max(luma(lin), 1e-4);\n    float Lx = L * exp2(E);\n
   // Either way highlight recovery works even at high exposure (+3..+5 EV).
   float E = uExposure;
   float H = clamp(uHighlights / 100.0, -1.0, 1.0);
-  float S = clamp(uShadows / 100.0, -1.0, 1.0);${t(x)}
+  float S = clamp(uShadows / 100.0, -1.0, 1.0);${t(S)}
   ${n("{\n    float L = max(luma(lin), 1e-4);\n\n    // Exposure: true linear gain (×2 per stop)\n    float Lx = L * exp2(E);\n\n    // Filmic shoulder: piecewise curve — linear below knee, smooth Reinhard\n    // compression above, keeping blown values out of display space wherever\n    // it applies. Highlights slider controls the knee position:\n    //   H < 0 (recover): lower knee → more of the range gets compressed\n    //   H > 0 (brighten): raise knee → more headroom before compression\n    float knee = 0.85;\n    float rolloff = 0.5;\n    if (H < 0.0) {\n      knee = mix(0.85, 0.15, -H);\n      rolloff = mix(0.5, 0.2, -H);\n    } else if (H > 0.0) {\n      knee = mix(0.85, 2.0, H);\n      rolloff = mix(0.5, 1.5, H);\n    }\n    // Slope at the knee is (1-knee)/rolloff; clamp so it never exceeds 1.0,\n    // otherwise midtones just above a low knee get lifted instead of compressed.\n    rolloff = max(rolloff, 1.0 - knee);\n    // Scale rolloff with sqrt of gain — enough to preserve highlight separation\n    // at moderate exposure but lets high exposure (+5) push the image toward white\n    rolloff *= max(exp2(max(E, 0.0) * 0.5), 1.0);\n\n    float Lsc = Lx;\n    if (Lx > knee) {\n      float excess = Lx - knee;\n      Lsc = knee + (1.0 - knee) * excess / (excess + rolloff);\n    }\n    // A transform with its own roll-off keeps the headroom: only recovery\n    // (H < 0) blends the shoulder back in, in proportion to the slider.\n    if (!uApplyToneShoulder) Lsc = mix(Lx, Lsc, max(-H, 0.0));\n\n    lin = retargetLuma(lin, L, Lsc);\n\n    // Hunt effect: restore colourfulness lost by pulling bright values down\n    if (H < -0.001 && Lx > knee) {\n      float pulled = clamp(Lx - Lsc, 0.0, 1.0);\n      float Lr = luma(lin);\n      lin = mix(vec3(Lr), lin, 1.0 + pulled * HI_SAT);\n    }\n\n    // Highlight lift (H > 0): gamma brighten the upper zone\n    if (H > 0.001) {\n      float Lcur = max(luma(lin), 1e-4);\n      float hw = smoothstep(0.3, 0.9, Lcur);\n      float gamma = mix(1.0, 0.5, H);\n      float newLcur = mix(Lcur, pow(Lcur, gamma), hw * H);\n      // The gamma lift darkens values above white; without the shoulder those\n      // are the transform's headroom, so the lift may only brighten.\n      if (!uApplyToneShoulder) newLcur = max(newLcur, Lcur);\n      lin = retargetLuma(lin, Lcur, newLcur);\n    }\n\n    // Shadows: gamma toe weighted toward the dark end, fading out in highlights\n    if (abs(S) > 0.001) {\n      float Lcur = max(luma(lin), 1e-4);\n      float shW = exp(-3.0 * Lcur);\n      float gamma = S > 0.0 ? mix(1.0, 0.65, S) : mix(1.0, 1.8, -S);\n      float newLcur = mix(Lcur, pow(Lcur, gamma), shW * abs(S));\n      lin = retargetLuma(lin, Lcur, newLcur);\n    }\n  }", b)}`;
-}, C = (e) => {
+}, w = (e) => {
 	let { clampInput: t } = y(e);
 	return `  // Whites (display space): endpoint control for the bright end.
   // Gamma-based adjustment weighted by cubic peaking at white.
@@ -209,7 +209,7 @@ var b = "  {\n    float L = max(luma(lin), 1e-4);\n    float Lx = L * exp2(E);\n
     c = c * (Lnew / max(L, 1e-4));
     c = clamp(c, 0.0, 1.0);
   }`;
-}, w = (e) => {
+}, T = (e) => {
 	let { clampInput: t } = y(e);
 	return `  // Dehaze: dark channel prior with global atmospheric light estimate.
   if (abs(dehAmt) > 0.001) {${t}
@@ -276,7 +276,7 @@ var b = "  {\n    float L = max(luma(lin), 1e-4);\n    float Lx = L * exp2(E);\n
     texDetail = clamp(texDetail, -0.08, 0.08);
     c += texDetail * texAmt * 2.5 * edgeMask;
   }`;
-}, T = (e) => {
+}, E = (e) => {
 	let { pick: t } = y(e);
 	return `  // Band-limited detail (highlight / shadow). Tonal recovery and lift compress a
   // luminance band, which dulls its micro-contrast (cloud texture, shadow detail).
@@ -303,63 +303,64 @@ var b = "  {\n    float L = max(luma(lin), 1e-4);\n    float Lx = L * exp2(E);\n
     c += bandDet * shGain * shZone * BAND_DETAIL;
   }
   ${t("c = clamp(c, 0.0, 1.0);", "")}`;
-}, E = (e) => {
+}, D = (e) => {
 	let { pick: t } = y(e);
 	return `  ${t("c = applyVibSat(c, uVibrance, uSaturation);", "if (abs(uVibrance) >= 0.1 || abs(uSaturation) > 0.1)\n    c = applyVibSat(c, uVibrance, uSaturation);")}`;
-}, D = (e) => ({
+}, O = (e) => ({
 	key: e,
 	glslType: "float",
 	default: 0
 });
-function O(e, t, n, r, i, a) {
+function k(e, t, n, r, i, a, o) {
 	return {
 		id: e,
 		name: t,
 		phase: n,
 		anchor: r,
 		glsl: a,
-		uniforms: Object.keys(i).map(D),
+		...o ? { helpers: o } : {},
+		uniforms: Object.keys(i).map(O),
 		derive: (e) => Object.fromEntries(Object.entries(i).map(([t, n]) => [t, e[n]]))
 	};
 }
-function k(e) {
+function A(e) {
 	return [
-		O(m, "Exposure, Highlights & Shadows", "scene-linear", "tone", {
+		k(m, "Exposure, Highlights & Shadows", "scene-linear", "tone", {
 			uExposure: "exposure",
 			uHighlights: "highlights",
 			uShadows: "shadows"
-		}, S(e)),
-		O(h, "Whites, Blacks & Contrast", "display-adjust", "display-basic", {
+		}, C(e), e >= 2 ? x : void 0),
+		k(h, "Whites, Blacks & Contrast", "display-adjust", "display-basic", {
 			uWhites: "whites",
 			uBlacks: "blacks",
 			uContrast: "contrast"
-		}, C(e)),
-		O(g, "Dehaze, Clarity & Texture", "display-adjust", "presence", {
+		}, w(e)),
+		k(g, "Dehaze, Clarity & Texture", "display-adjust", "presence", {
 			uTexture: "texture",
 			uClarity: "clarity",
 			uDehaze: "dehaze"
-		}, w(e)),
-		O(_, "Highlight & Shadow Detail", "display-adjust", "band-detail", {
+		}, T(e)),
+		k(_, "Highlight & Shadow Detail", "display-adjust", "band-detail", {
 			uHighlightDetail: "highlightDetail",
 			uShadowDetail: "shadowDetail"
-		}, T(e)),
-		O(v, "Vibrance & Saturation", "display-adjust", "vibrance", {
+		}, E(e)),
+		k(v, "Vibrance & Saturation", "display-adjust", "vibrance", {
 			uVibrance: "vibrance",
 			uSaturation: "saturation"
-		}, E(e))
+		}, D(e))
 	];
 }
 //#endregion
 //#region src/index.tsx
-var A = "core.basic", j = "safelight.basic.styles", M = 3;
-function N(e) {
+var j = "core.basic", M = "safelight.basic.styles", N = 3;
+function P(e) {
 	n(e), e.registerStylesheet({
-		id: j,
+		id: M,
 		css: o()
 	});
-	for (let t of k(3)) e.registerProcessingStage(t);
+	for (let t of A(3)) e.registerProcessingStage(t);
 	e.registerPanel({
-		id: A,
+		id: j,
 		title: "Basic",
 		component: u,
 		defaultDock: {
@@ -374,6 +375,6 @@ function N(e) {
 	}), e.registerSettings(i);
 }
 //#endregion
-export { M as LINE, A as PANEL_ID, j as STYLESHEET_ID, N as activate };
+export { N as LINE, j as PANEL_ID, M as STYLESHEET_ID, P as activate };
 
 //# sourceMappingURL=index.js.map

@@ -25,7 +25,7 @@ import { DEFAULTS, fakeApi } from "./support/fake-api";
 
 /** The app's hashes of the stages' text (src/rendering/webgl/essential-stages.test.ts). */
 const V2_HASHES = {
-  [TONE_STAGE_ID]: "4cf1078f5558c4a8d4b79bf882a4d426f4f54f6f34ee992f8c6997baa6c1584a",
+  [TONE_STAGE_ID]: "b49dbc83ba6d4333747bed873e98360e8b466961577b7122826605953ab0a759",
   [DISPLAY_STAGE_ID]: "ca8456a68e6aa294d080ad64520030d43aee56755992c98421ec34648140de3f",
   [PRESENCE_STAGE_ID]: "01d11d693d9c73571d91f51a15fc3fb2ca210501000fe7911c3c8250fd837164",
   [BAND_DETAIL_STAGE_ID]: "242979eb84fe05b84865c0f7c77dfb09f5e1e6d8bacc5d744465cf06570cd868",
@@ -88,6 +88,19 @@ describe("basicStages", () => {
   it("declares the shoulder gain core's scene luma reads from line 2 on", () => {
     const declares = (line: Line) => basicStages(line)[0].glsl.includes("float slShoulderGain = 1.0;");
     expect([declares(1), declares(2), declares(3)]).toEqual([false, true, true]);
+  });
+
+  it("runs Shadows through its own curve from line 2 on, version 1 photos keeping core's", () => {
+    const [tone1] = basicStages(1);
+    expect(tone1.helpers).toBeUndefined();
+    for (const line of [2, 3] as Line[]) {
+      const [tone] = basicStages(line);
+      expect(tone.glsl).toContain("float L2 = basicShadows(slToneShadows(L1, cameraLift), S);");
+      expect(tone.glsl).toContain("L2 = mix(basicShadows(C1, S), C1 * basicShadows(CB, S) / CB, abs(S));");
+      expect(tone.helpers).toMatch(
+        /float basicShadows\(float x, float S\) \{\n#if SL_PROCESS_VERSION >= 2\n[\s\S]*#else\n  return slToneShadows\(x, S\);\n#endif\n\}/,
+      );
+    }
   });
 
   it("binds each slider to its uniform", () => {

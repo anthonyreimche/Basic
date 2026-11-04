@@ -1,7 +1,7 @@
 {
   "id": "safelight.basic",
   "name": "Basic",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Exposure, contrast, highlights, shadows, whites, blacks, presence and Auto Tone.",
   "author": "Anthony Reimche",
   "main": "dist/index.js",

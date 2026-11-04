@@ -45,7 +45,7 @@ const V2_TONE_BLOCK = `  {
     float Lx = L * exp2(E);
     float L1 = slToneHighlights(Lx, E, H);
     float cameraLift = uApplyBaseCurve ? uBaselineShadows : 0.0;
-    float L2 = slToneShadows(slToneShadows(L1, cameraLift), S);
+    float L2 = basicShadows(slToneShadows(L1, cameraLift), S);
     float curveRatio = 1.0;
     if (abs(H) > 0.001 || abs(S) > 0.001) {
       // Floored after Exposure (as localToneBlend is): under the curves' own
@@ -62,7 +62,7 @@ const V2_TONE_BLOCK = `  {
       L1 = mix(L1, Lx * B1 / Bx, abs(H));
       float C1 = slToneShadows(L1, cameraLift);
       float CB = slToneShadows(B1, cameraLift);
-      L2 = mix(slToneShadows(C1, S), C1 * slToneShadows(CB, S) / CB, abs(S));
+      L2 = mix(basicShadows(C1, S), C1 * basicShadows(CB, S) / CB, abs(S));
     }
     // slSceneLuma undoes only the default shoulder, on the same pixel/region
     // blend the edit above used, so Highlights carries into it.
@@ -74,6 +74,25 @@ const V2_TONE_BLOCK = `  {
       lin = mix(vec3(luma(lin)), lin, 1.0 + pulled * HI_SAT);
     }
   }`;
+
+// The Shadows slider on the tone block's luminance, from process version 2 on
+// (core's local-tone.ts basicShadows is its twin): version 1's curve at ±50,
+// its gain in stops times 2|S|. Version 1's curve mixes toward x^g by a weight
+// that reaches 1 at ±100, so the deep shadows took the whole power there
+// (about -5.5 EV at -100 against -0.84 at -50). The gain fades out over the
+// 3.5 stops below mid grey, which stays put. Version 1 photos keep core's.
+const TONE_HELPERS = `float basicShadows(float x, float S) {
+#if SL_PROCESS_VERSION >= 2
+  if (abs(S) <= 0.001) return x;
+  float x0 = max(x, 1e-4);
+  float w = 0.5 * exp(-3.0 * x0);
+  float halfGain = 1.0 - w + w * pow(x0, S > 0.0 ? -0.175 : 0.4);
+  float reach = 1.0 - smoothstep(-3.5, 0.0, log2(x0 / 0.18));
+  return x0 * pow(halfGain, 2.0 * abs(S) * reach);
+#else
+  return slToneShadows(x, S);
+#endif
+}`;
 
 const SHOULDER_GAIN_DECL = "\n  float slShoulderGain = 1.0;";
 
@@ -308,6 +327,7 @@ function stage(
   anchor: StageAnchor,
   fields: Record<string, keyof DevelopParams>,
   glsl: string,
+  helpers?: string,
 ): ProcessingStageContribution {
   return {
     id,
@@ -315,6 +335,7 @@ function stage(
     phase,
     anchor,
     glsl,
+    ...(helpers ? { helpers } : {}),
     uniforms: Object.keys(fields).map(float),
     derive: (p) => Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, p[field]])),
   };
@@ -330,6 +351,7 @@ export function basicStages(line: Line): ProcessingStageContribution[] {
       "tone",
       { uExposure: "exposure", uHighlights: "highlights", uShadows: "shadows" },
       basicTone(line),
+      line >= 2 ? TONE_HELPERS : undefined,
     ),
     stage(
       DISPLAY_STAGE_ID,
