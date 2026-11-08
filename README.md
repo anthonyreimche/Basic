@@ -26,6 +26,10 @@ photos that had them. The default highlight roll-off and the camera match's
 shadows lift are part of Basic's tone too, so they go with it. Masks' own
 tone keeps rendering either way.
 
+## Resting blocks
+
+From 3.1.0, on Safelight 3.2.1 or newer, the live view leaves a block of Basic out of the develop shader while its sliders are at 0, so an untouched slider group costs no drawing time: Whites, Blacks & Contrast and Dehaze, Clarity & Texture on every line, and on lines 2 and 3 Highlight & Shadow Detail and Vibrance & Saturation too (line 1 runs those two at 0, and they clip). The tone block never rests: at 0 it still applies the default highlight roll-off and the camera match's shadows lift. The picture is the same either way, and thumbnails and exports always run every block.
+
 ## Release lines
 
 A release's major version is its line, the process version its stage text was

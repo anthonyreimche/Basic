@@ -319,6 +319,13 @@ const basicVibrance = (line: Line): string => {
 
 const float = (key: string): UniformDeclaration => ({ key, glslType: "float", default: 0 });
 
+interface StageOptions {
+  helpers?: string;
+  /** Whether the live view may leave the block out while every one of its
+   *  sliders is at 0, because the line's text skips it then. */
+  sleepsAtRest?: boolean;
+}
+
 /** One block: its uniforms are DevelopParams fields bound as they are. */
 function stage(
   id: string,
@@ -327,8 +334,9 @@ function stage(
   anchor: StageAnchor,
   fields: Record<string, keyof DevelopParams>,
   glsl: string,
-  helpers?: string,
+  { helpers, sleepsAtRest = false }: StageOptions = {},
 ): ProcessingStageContribution {
+  const uniforms = Object.keys(fields);
   return {
     id,
     name,
@@ -336,12 +344,18 @@ function stage(
     anchor,
     glsl,
     ...(helpers ? { helpers } : {}),
-    uniforms: Object.keys(fields).map(float),
+    uniforms: uniforms.map(float),
+    ...(sleepsAtRest ? { dormantWhen: Object.fromEntries(uniforms.map((key) => [key, 0])) } : {}),
     derive: (p) => Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, p[field]])),
   };
 }
 
-/** The stages of release line `line`, in the program's order. */
+/** The stages of release line `line`, in the program's order. The tone block
+ *  never sleeps: at rest it still applies the default highlight shoulder and,
+ *  for a camera match, its shadows lift. Of the others, a block sleeps where
+ *  the line's text skips it at rest. Lines 2 and 3 guard band detail and
+ *  vibrance on their sliders alone; line 1 adds an auto term from Highlights
+ *  and Shadows to band detail and runs vibrance unguarded, which clips. */
 export function basicStages(line: Line): ProcessingStageContribution[] {
   return [
     stage(
@@ -351,7 +365,7 @@ export function basicStages(line: Line): ProcessingStageContribution[] {
       "tone",
       { uExposure: "exposure", uHighlights: "highlights", uShadows: "shadows" },
       basicTone(line),
-      line >= 2 ? TONE_HELPERS : undefined,
+      { helpers: line >= 2 ? TONE_HELPERS : undefined },
     ),
     stage(
       DISPLAY_STAGE_ID,
@@ -360,6 +374,7 @@ export function basicStages(line: Line): ProcessingStageContribution[] {
       "display-basic",
       { uWhites: "whites", uBlacks: "blacks", uContrast: "contrast" },
       basicDisplay(line),
+      { sleepsAtRest: true },
     ),
     stage(
       PRESENCE_STAGE_ID,
@@ -368,6 +383,7 @@ export function basicStages(line: Line): ProcessingStageContribution[] {
       "presence",
       { uTexture: "texture", uClarity: "clarity", uDehaze: "dehaze" },
       basicPresence(line),
+      { sleepsAtRest: true },
     ),
     stage(
       BAND_DETAIL_STAGE_ID,
@@ -376,6 +392,7 @@ export function basicStages(line: Line): ProcessingStageContribution[] {
       "band-detail",
       { uHighlightDetail: "highlightDetail", uShadowDetail: "shadowDetail" },
       basicBandDetail(line),
+      { sleepsAtRest: line >= 2 },
     ),
     stage(
       VIBRANCE_STAGE_ID,
@@ -384,6 +401,7 @@ export function basicStages(line: Line): ProcessingStageContribution[] {
       "vibrance",
       { uVibrance: "vibrance", uSaturation: "saturation" },
       basicVibrance(line),
+      { sleepsAtRest: line >= 2 },
     ),
   ];
 }
