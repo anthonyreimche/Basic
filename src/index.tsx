@@ -30,6 +30,7 @@ export function activate(host: SafelightAPI): void {
     title: "Basic",
     component: BasicPanel,
     defaultDock: { module: "develop", direction: "right", order: 5, width: 280, height: 220 },
+    modules: ["develop"],
     onReset: () => void host.stores.useDevelopStore.getState().resetParams(BASIC_KEYS, "Reset Basic"),
     mask: BASIC_MASK_PANEL,
   });

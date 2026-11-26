@@ -134,6 +134,7 @@ describe("activate", () => {
         title: "Basic",
         component: BasicPanel,
         defaultDock: { module: "develop", direction: "right", order: 5, width: 280, height: 220 },
+        modules: ["develop"],
         onReset: expect.any(Function),
         mask: BASIC_MASK_PANEL,
       },

@@ -311,7 +311,8 @@ var b = "  {\n    float L = max(luma(lin), 1e-4);\n    float Lx = L * exp2(E);\n
 	glslType: "float",
 	default: 0
 });
-function k(e, t, n, r, i, a, o) {
+function k(e, t, n, r, i, a, { helpers: o, sleepsAtRest: s = !1 } = {}) {
+	let c = Object.keys(i);
 	return {
 		id: e,
 		name: t,
@@ -319,7 +320,8 @@ function k(e, t, n, r, i, a, o) {
 		anchor: r,
 		glsl: a,
 		...o ? { helpers: o } : {},
-		uniforms: Object.keys(i).map(O),
+		uniforms: c.map(O),
+		...s ? { dormantWhen: Object.fromEntries(c.map((e) => [e, 0])) } : {},
 		derive: (e) => Object.fromEntries(Object.entries(i).map(([t, n]) => [t, e[n]]))
 	};
 }
@@ -329,25 +331,25 @@ function A(e) {
 			uExposure: "exposure",
 			uHighlights: "highlights",
 			uShadows: "shadows"
-		}, C(e), e >= 2 ? x : void 0),
+		}, C(e), { helpers: e >= 2 ? x : void 0 }),
 		k(h, "Whites, Blacks & Contrast", "display-adjust", "display-basic", {
 			uWhites: "whites",
 			uBlacks: "blacks",
 			uContrast: "contrast"
-		}, w(e)),
+		}, w(e), { sleepsAtRest: !0 }),
 		k(g, "Dehaze, Clarity & Texture", "display-adjust", "presence", {
 			uTexture: "texture",
 			uClarity: "clarity",
 			uDehaze: "dehaze"
-		}, T(e)),
+		}, T(e), { sleepsAtRest: !0 }),
 		k(_, "Highlight & Shadow Detail", "display-adjust", "band-detail", {
 			uHighlightDetail: "highlightDetail",
 			uShadowDetail: "shadowDetail"
-		}, E(e)),
+		}, E(e), { sleepsAtRest: e >= 2 }),
 		k(v, "Vibrance & Saturation", "display-adjust", "vibrance", {
 			uVibrance: "vibrance",
 			uSaturation: "saturation"
-		}, D(e))
+		}, D(e), { sleepsAtRest: e >= 2 })
 	];
 }
 //#endregion
@@ -370,6 +372,7 @@ function P(e) {
 			width: 280,
 			height: 220
 		},
+		modules: ["develop"],
 		onReset: () => void e.stores.useDevelopStore.getState().resetParams(c, "Reset Basic"),
 		mask: p
 	}), e.registerSettings(i);
